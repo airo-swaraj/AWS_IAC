@@ -109,8 +109,8 @@ EOF
                     sh '''
                         . /tmp/stack.env
                         
-                        if [ "${ACTION}" == "CREATE" ]; then
-                            if [ "$STACK_EXISTS" == "true" ]; then
+                        if [ "${ACTION}" = "CREATE" ]; then
+                            if [ "$STACK_EXISTS" = "true" ]; then
                                 echo "Stack ${STACK_NAME} already exists. Use UPDATE action instead."
                                 exit 1
                             fi
@@ -128,7 +128,7 @@ EOF
                                 --stack-name ${STACK_NAME} \
                                 --region ${AWS_REGION}
                             
-                        elif [ "${ACTION}" == "UPDATE" ]; then
+                        elif [ "${ACTION}" = "UPDATE" ]; then
                             if [ "$STACK_EXISTS" != "true" ]; then
                                 echo "Stack ${STACK_NAME} does not exist. Use CREATE action instead."
                                 exit 1
@@ -147,7 +147,7 @@ EOF
                                 --stack-name ${STACK_NAME} \
                                 --region ${AWS_REGION} || true
                             
-                        elif [ "${ACTION}" == "DELETE" ]; then
+                        elif [ "${ACTION}" = "DELETE" ]; then
                             if [ "$STACK_EXISTS" != "true" ]; then
                                 echo "Stack ${STACK_NAME} does not exist."
                                 exit 0
