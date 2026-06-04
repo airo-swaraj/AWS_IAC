@@ -107,7 +107,7 @@ EOF
             steps {
                 script {
                     sh '''
-                        source /tmp/stack.env
+                        . /tmp/stack.env
                         
                         if [ "${ACTION}" == "CREATE" ]; then
                             if [ "$STACK_EXISTS" == "true" ]; then
