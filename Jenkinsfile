@@ -79,7 +79,7 @@ pipeline {
                         
                         # API call to FortiCNAPP with proper authentication headers
                         # Generate UAKS header (HMAC-SHA256 signature)
-                        REQUEST_BODY="{\"keyId\":\"${LW_ACCESS}\",\"expiryTime\":3600}"
+                        REQUEST_BODY='{"keyId":"'${LW_ACCESS}'","expiryTime":3600}'
                         
                         UAKS=$(echo -n "$REQUEST_BODY" | openssl dgst -sha256 -hmac "$LW_SECRET" -binary | base64)
                         
