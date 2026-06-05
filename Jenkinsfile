@@ -65,29 +65,27 @@ pipeline {
                         echo "Stack Name: ${STACK_NAME}"
                         echo "Environment: ${ENVIRONMENT}"
                         echo "Template: ${TEMPLATE_FILE}"
+                        echo "Account: ${LACEWORK_ACCOUNT}"
                         echo "================================"
                         echo ""
                         
-                        # Install Fortinac CLI if not present
-                        if ! command -v lacework &> /dev/null; then
-                            echo "Installing Fortinac CLI..."
-                            pip3 install lacework-cli --quiet 2>/dev/null || \
-                            npm install -g lacework-cli --silent 2>/dev/null || {
-                                echo "Warning: Fortinac CLI not installed. Installing from source..."
-                                curl -sSL https://raw.githubusercontent.com/laceworkdev/cli/main/install.sh | bash
-                            }
-                        fi
+                        # Read CloudFormation template
+                        echo "Scanning CloudFormation template: ${TEMPLATE_FILE}"
                         
-                        # Run FortiCNAPP IaC scan with credentials
-                        echo "Scanning CloudFormation template with FortiCNAPP..."
-                        lacework lql run --account ${LACEWORK_ACCOUNT} \
-                            --api_key ${LW_ACCESS} \
-                            --api_secret ${LW_SECRET} \
-                            --query "CloudFormation Misconfigurations" \
-                            --file ${TEMPLATE_FILE} \
-                            > ${SCAN_REPORT_DIR}/scan-result.json 2>&1 || true
+                        # Call FortiCNAPP API to scan CloudFormation
+                        SCAN_PAYLOAD=$(cat ${TEMPLATE_FILE} | base64 -w 0)
                         
-                        # Display scan results
+                        echo "Uploading template to FortiCNAPP for analysis..."
+                        
+                        # API call to FortiCNAPP
+                        curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/CloudFormationTemplate/scan" \
+                          -H "Content-Type: application/json" \
+                          -H "Authorization: Bearer $(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
+                            -H "Content-Type: application/json" \
+                            -d "{\"keyId\":\"${LW_ACCESS}\",\"expiryTime\":3600}" | jq -r '.data[0].token' 2>/dev/null || echo '')" \
+                          -d "{\"template\":\"${SCAN_PAYLOAD}\"}" \
+                          > ${SCAN_REPORT_DIR}/scan-result.json 2>&1 || true
+                        
                         echo ""
                         echo "Scan Results:"
                         echo "=============="
@@ -96,72 +94,35 @@ pipeline {
                         fi
                         
                         # Generate HTML report
-                        echo ""
-                        echo "Generating scan report..."
                         cat > ${SCAN_REPORT_DIR}/scan-report.html <<'HTMLREPORT'
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fortinac IaC Security Scan</title>
+    <title>FortiCNAPP IaC Security Scan</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
         .header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
         .summary { background: white; padding: 15px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .critical { color: #e74c3c; font-weight: bold; }
-        .high { color: #e67e22; font-weight: bold; }
-        .medium { color: #f39c12; }
-        .low { color: #27ae60; }
         pre { background: #ecf0f1; padding: 10px; border-radius: 3px; overflow-x: auto; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>Fortinac CNAPP IaC Security Scan Report</h1>
+        <h1>FortiCNAPP IaC Security Scan Report</h1>
         <p>Stack: ${STACK_NAME} | Environment: ${ENVIRONMENT} | Scan Date: $(date)</p>
     </div>
     <div class="summary">
-        <h2>Scan Summary</h2>
-        <p><span class="critical">Critical Issues:</span> <strong>0</strong></p>
-        <p><span class="high">High Issues:</span> <strong>0</strong></p>
-        <p><span class="medium">Medium Issues:</span> <strong>0</strong></p>
-        <p><span class="low">Low Issues:</span> <strong>0</strong></p>
-    </div>
-    <div class="summary">
-        <h2>Detailed Results</h2>
-        <pre>$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null || echo "No scan results")</pre>
+        <h2>Scan Results</h2>
+        <pre>$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null || echo "Scan in progress...")</pre>
     </div>
 </body>
 </html>
 HTMLREPORT
                         
-                        # Parse and count severity levels
-                        CRITICAL=$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null | grep -o '"severity":"CRITICAL"' | wc -l || echo 0)
-                        HIGH=$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null | grep -o '"severity":"HIGH"' | wc -l || echo 0)
-                        MEDIUM=$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null | grep -o '"severity":"MEDIUM"' | wc -l || echo 0)
-                        LOW=$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null | grep -o '"severity":"LOW"' | wc -l || echo 0)
-                        
                         echo ""
-                        echo "================================"
-                        echo "FortiCNAPP Scan Summary"
-                        echo "================================"
-                        echo "Critical Issues: $CRITICAL"
-                        echo "High Issues: $HIGH"
-                        echo "Medium Issues: $MEDIUM"
-                        echo "Low Issues: $LOW"
-                        echo "================================"
-                        echo ""
-                        
-                        # Display findings without blocking
-                        if [ "$CRITICAL" -gt 0 ]; then
-                            echo "⚠️  WARNING: $CRITICAL CRITICAL security issues found"
-                        fi
-                        
-                        if [ "$HIGH" -gt 0 ]; then
-                            echo "⚠️  INFO: $HIGH HIGH severity issues detected"
-                        fi
-                        
-                        echo "✅ FortiCNAPP IaC scan completed successfully"
-                        echo "📊 Scan results uploaded to FortiCNAPP portal"
+                        echo "✅ FortiCNAPP IaC scan completed"
+                        echo "📊 Scan results saved to ${SCAN_REPORT_DIR}/"
+                        echo "📋 View report: forticnapp-scan-reports/scan-report.html"
                     '''
                 }
             }
