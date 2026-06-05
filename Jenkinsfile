@@ -78,11 +78,18 @@ pipeline {
                         echo "Uploading template to FortiCNAPP for analysis..."
                         
                         # API call to FortiCNAPP with proper authentication headers
-                        # Generate UAKS header (HMAC signature)
-                        REQUEST_TIME=$(date +%s)000
+                        # Generate UAKS header (HMAC-SHA256 signature)
                         REQUEST_BODY='{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}'
                         
-                        UAKS=$(echo -n "${REQUEST_BODY}" | openssl dgst -sha256 -hmac "${LW_SECRET}" -binary | base64)
+                        UAKS=$(python3 -c "
+import hmac
+import hashlib
+import base64
+secret = '''${LW_SECRET}'''
+body = '''${REQUEST_BODY}'''
+signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
+print(base64.b64encode(signature).decode())
+")
                         
                         TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
                           -H "Content-Type: application/json" \
