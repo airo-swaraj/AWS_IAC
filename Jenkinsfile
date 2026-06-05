@@ -227,17 +227,27 @@ EOF
                             fi
                             
                             echo "Updating CloudFormation stack: ${STACK_NAME}"
-                            aws cloudformation update-stack \
+                            UPDATE_OUTPUT=$(aws cloudformation update-stack \
                                 --stack-name ${STACK_NAME} \
                                 --template-body file://${TEMPLATE_FILE} \
                                 --parameters file:///tmp/parameters.json \
                                 --region ${AWS_REGION} \
-                                --tags Key=Environment,Value=${ENVIRONMENT} Key=ManagedBy,Value=Jenkins || true
+                                --tags Key=Environment,Value=${ENVIRONMENT} Key=ManagedBy,Value=Jenkins 2>&1)
                             
-                            echo "Waiting for stack update to complete..."
-                            aws cloudformation wait stack-update-complete \
-                                --stack-name ${STACK_NAME} \
-                                --region ${AWS_REGION} || true
+                            UPDATE_STATUS=$?
+                            echo "$UPDATE_OUTPUT"
+                            
+                            # Check if update was initiated
+                            if echo "$UPDATE_OUTPUT" | grep -q "No updates are to be performed"; then
+                                echo "ℹ️  No changes detected. Stack is already up to date."
+                            elif [ $UPDATE_STATUS -eq 0 ]; then
+                                echo "Waiting for stack update to complete..."
+                                aws cloudformation wait stack-update-complete \
+                                    --stack-name ${STACK_NAME} \
+                                    --region ${AWS_REGION}
+                            else
+                                echo "⚠️  Update encountered an error but continuing..."
+                            fi
                             
                         elif [ "${ACTION}" = "DELETE" ]; then
                             if [ "$STACK_EXISTS" != "true" ]; then
