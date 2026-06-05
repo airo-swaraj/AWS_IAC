@@ -81,15 +81,17 @@ pipeline {
                         # Generate UAKS header (HMAC-SHA256 signature)
                         REQUEST_BODY='{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}'
                         
-                        UAKS=$(python3 -c "
+                        UAKS=$(python3 << 'PYEOF'
 import hmac
 import hashlib
 import base64
-secret = '''${LW_SECRET}'''
-body = '''${REQUEST_BODY}'''
+import os
+secret = os.environ['LW_SECRET']
+body = os.environ['REQUEST_BODY']
 signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
 print(base64.b64encode(signature).decode())
-")
+PYEOF
+)
                         
                         TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
                           -H "Content-Type: application/json" \
