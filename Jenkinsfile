@@ -81,13 +81,12 @@ pipeline {
                         # Generate UAKS header (HMAC-SHA256 signature)
                         REQUEST_BODY='{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}'
                         
-                        UAKS=$(python3 << 'PYEOF'
+                        UAKS=$(python3 << PYEOF
 import hmac
 import hashlib
 import base64
-import os
-secret = os.environ['LW_SECRET']
-body = os.environ['REQUEST_BODY']
+secret = '''${LW_SECRET}'''
+body = '''${REQUEST_BODY}'''
 signature = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
 print(base64.b64encode(signature).decode())
 PYEOF
