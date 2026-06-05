@@ -77,10 +77,10 @@ pipeline {
                         
                         echo "Uploading template to FortiCNAPP for analysis..."
                         
-                        # API call to FortiCNAPP
+                        # API call to FortiCNAPP with proper JSON formatting
                         TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
                           -H "Content-Type: application/json" \
-                          -d "{\"keyId\":\"${LW_ACCESS}\",\"expiryTime\":3600}")
+                          -d '{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}')
                         
                         API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
                         
@@ -90,11 +90,12 @@ pipeline {
                             exit 0
                         fi
                         
+                        echo "✓ Successfully authenticated with FortiCNAPP"
                         echo "Calling FortiCNAPP API with token..."
                         curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/CloudFormationTemplate/scan" \
                           -H "Content-Type: application/json" \
                           -H "Authorization: Bearer ${API_TOKEN}" \
-                          -d "{\"template\":\"${SCAN_PAYLOAD}\"}" \
+                          -d '{"template":"'"${SCAN_PAYLOAD}"'"}' \
                           > ${SCAN_REPORT_DIR}/scan-result.json 2>&1 || true
                         
                         echo ""
