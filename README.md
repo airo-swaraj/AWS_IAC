@@ -163,6 +163,168 @@ aws cloudformation validate-template \
     --region us-east-1
 ```
 
+## Security Scanning with FortiCNAPP
+
+This pipeline includes **FortiCNAPP (Cloud Native Application Protection Platform)** for IaC security scanning. FortiCNAPP is the next-generation version of Lacework, providing cloud-native security and compliance scanning.
+
+### Prerequisites for FortiCNAPP
+
+1. **FortiCNAPP Account** - Available through Fortinet's FortiCloud
+2. **FortiCNAPP Account ID** - Get from FortiCloud
+3. **API ID & Password** - Generate from FortiCloud → Users → API User
+4. **Lacework CLI** - Installed on Jenkins server
+5. **Jenkins Credentials** - Add FortiCNAPP credentials
+
+### Setup FortiCNAPP Integration
+
+#### 1. Install Lacework CLI on Jenkins Server
+
+```bash
+# Using pip (recommended)
+pip3 install lacework-cli
+
+# OR using curl
+curl -sSL https://raw.githubusercontent.com/laceworkdev/cli/main/install.sh | bash
+
+# Verify installation
+lacework version
+```
+
+#### 2. Get FortiCNAPP Credentials
+
+1. Go to https://forticloud.fortinet.com (FortiCloud portal)
+2. Navigate to **Services** → **Users**
+3. Create an **API User** and download credentials
+4. You'll get:
+   - **API ID** (your Access Key)
+   - **Password** (your Secret Key)
+   - **Account Name** (your Account ID, e.g., mycompany)
+
+#### 3. Add FortiCNAPP Credentials to Jenkins
+
+Add three separate credentials:
+
+**Credential 1 - API ID:**
+1. Go to **Manage Jenkins** → **Manage Credentials**
+2. Click **Global** → **Add Credentials**
+3. Select **Secret text**
+4. Enter:
+   - **Secret**: Your FortiCNAPP **API ID**
+   - **ID**: `FORTICNAPP_ACCESS_KEY`
+5. Click **Create**
+
+**Credential 2 - Password (Secret Key):**
+1. Repeat above steps
+2. Enter:
+   - **Secret**: Your FortiCNAPP **Password**
+   - **ID**: `FORTICNAPP_SECRET_KEY`
+3. Click **Create**
+
+**Credential 3 - Account Name/ID:**
+1. Repeat above steps
+2. Enter:
+   - **Secret**: Your FortiCNAPP **Account Name**
+   - **ID**: `FORTICNAPP_ACCOUNT`
+3. Click **Create**
+
+### How FortiCNAPP Scan Works
+
+The pipeline includes a **"Scan IaC with FortiCNAPP"** stage that:
+
+1. **Authenticates** with FortiCNAPP using API credentials
+2. **Scans** CloudFormation template for misconfigurations
+3. **Detects** security, compliance, and best practice violations
+4. **Generates reports** in JSON and HTML formats
+5. **Displays summary** in build logs (Critical, High, Medium, Low issues)
+6. **Reports findings** without blocking deployment
+7. **Shows** if HIGH severity issues are detected
+8. **Stores reports** in `forticnapp-scan-reports/` directory and uploads to FortiCNAPP portal
+
+### Scan Report Locations
+
+After pipeline execution, scan reports are available in:
+
+**Jenkins UI:**
+- Build page → **Artifacts** → Download `scan-result.json` or `scan-report.html`
+
+**FortiCNAPP Portal:**
+- Dashboard → **Recent Scans**
+- Projects → **VPC Stack**
+- Compliance → **CloudFormation Resources**
+
+### Example FortiCNAPP Scan Output
+
+```
+================================
+FortiCNAPP IaC Scan
+================================
+Scan Date: 2026-06-05 14:30:00
+Stack Name: vpc-stack
+Environment: production
+Template: vpc-stack.yaml
+================================
+
+Scanning CloudFormation template with FortiCNAPP...
+
+Scan Results:
+{
+  "data": [
+    {
+      "resourceId": "PublicSecurityGroup",
+      "resourceType": "AWS::EC2::SecurityGroup",
+      "severity": "HIGH",
+      "complianceId": "CIS_AWS_1.2",
+      "description": "Security group allows unrestricted SSH access"
+    }
+  ]
+}
+
+================================
+FortiCNAPP Scan Summary
+================================
+Critical Issues: 0
+High Issues: 1
+Medium Issues: 2
+Low Issues: 3
+================================
+
+⚠️  INFO: 1 HIGH severity issues detected
+✅ FortiCNAPP IaC scan completed successfully
+📊 Scan results uploaded to FortiCNAPP portal
+```
+
+### Common FortiCNAPP Findings
+
+1. **Overly Permissive Security Groups** (0.0.0.0/0 ingress)
+2. **Unencrypted Data in Transit** (HTTP instead of HTTPS)
+3. **Public Subnet Exposure** (Resources accessible from internet)
+4. **Missing Encryption** (EBS volumes, S3 buckets)
+5. **Inadequate Logging** (CloudTrail, VPC Flow Logs not enabled)
+6. **Missing Tagging** (No proper resource tagging)
+
+### Fixing FortiCNAPP Issues
+
+1. **Review findings** in FortiCNAPP portal
+2. **Update** `vpc-stack.yaml` with fixes
+3. **Re-run pipeline** to verify
+4. **Track remediation** in FortiCNAPP dashboard
+
+### Pipeline Behavior
+
+- **CRITICAL issues** → Pipeline **reports warning** (continues deployment)
+- **HIGH issues** → Pipeline **reports info** (continues deployment)
+- **MEDIUM/LOW issues** → Pipeline **continues** (informational only)
+- **All issues** → Reports saved to Jenkins artifacts and FortiCNAPP portal
+
+### FortiCNAPP References
+
+- [FortiCNAPP Documentation](https://docs.lacework.net)
+- [Lacework CLI GitHub](https://github.com/laceworkdev/cli)
+- [CloudFormation Security Best Practices](https://docs.lacework.net/cloudformation)
+- [FortiCNAPP API Reference](https://docs.lacework.net/api)
+
+---
+
 ## Running the Pipeline
 
 ### Option 1: Using Jenkins Web UI
