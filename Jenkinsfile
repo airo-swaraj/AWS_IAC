@@ -78,12 +78,10 @@ pipeline {
                         echo "Uploading template to FortiCNAPP for analysis..."
                         
                         # API call to FortiCNAPP with proper authentication headers
-                        # Try Basic Auth instead of HMAC
-                        AUTH_HEADER=$(echo -n "${LW_ACCESS}:${LW_SECRET}" | base64 -w 0)
-                        
+                        # Use curl's -u flag for Basic Auth (standard method)
                         TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
+                          -u "${LW_ACCESS}:${LW_SECRET}" \
                           -H "Content-Type: application/json" \
-                          -H "Authorization: Basic ${AUTH_HEADER}" \
                           -d '{"expiryTime":3600}')
                         
                         API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
