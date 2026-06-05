@@ -77,10 +77,17 @@ pipeline {
                         
                         echo "Uploading template to FortiCNAPP for analysis..."
                         
-                        # API call to FortiCNAPP with proper JSON formatting
+                        # API call to FortiCNAPP with proper authentication headers
+                        # Generate UAKS header (HMAC signature)
+                        REQUEST_TIME=$(date +%s)000
+                        REQUEST_BODY='{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}'
+                        
+                        UAKS=$(echo -n "${REQUEST_BODY}" | openssl dgst -sha256 -hmac "${LW_SECRET}" -binary | base64)
+                        
                         TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
                           -H "Content-Type: application/json" \
-                          -d '{"keyId":"'"${LW_ACCESS}"'","expiryTime":3600}')
+                          -H "X-LW-UAKS: ${UAKS}" \
+                          -d "${REQUEST_BODY}")
                         
                         API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
                         
