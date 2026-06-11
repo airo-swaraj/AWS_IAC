@@ -71,9 +71,10 @@ pipeline {
                         fi
 
                         # Remove any broken binary and reinstall Lacework CLI
-                        if ! lacework version >/dev/null 2>&1; then
+                        LW_BIN=/tmp/lacework
+                        if ! $LW_BIN version >/dev/null 2>&1; then
                             echo "Installing Lacework CLI..."
-                            rm -f /usr/local/bin/lacework
+                            rm -f "$LW_BIN"
                             LATEST_URL=$(curl -sL https://api.github.com/repos/lacework/go-lacework/releases/latest \
                                 | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if 'linux-amd64' in a['name'] and a['name'].endswith('lacework-linux-amd64')),''  ))")
                             if [ -z "$LATEST_URL" ]; then
@@ -81,16 +82,16 @@ pipeline {
                                 exit 1
                             fi
                             echo "Downloading from: $LATEST_URL"
-                            curl -L --fail "$LATEST_URL" -o /usr/local/bin/lacework
-                            chmod +x /usr/local/bin/lacework
+                            curl -L --fail "$LATEST_URL" -o "$LW_BIN"
+                            chmod +x "$LW_BIN"
                         fi
-                        echo "Lacework CLI version: $(lacework version)"
+                        echo "Lacework CLI version: $($LW_BIN version)"
 
                         # Run IaC scan on CloudFormation template
                         echo "Scanning: ${TEMPLATE_FILE}"
                         REPORT_JSON="$REPORT_DIR/scan-result.json"
 
-                        lacework iac scan \
+                        $LW_BIN iac scan \
                             --iac-type cloudformation \
                             --file "${TEMPLATE_FILE}" \
                             --output json \
