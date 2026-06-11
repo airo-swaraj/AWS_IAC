@@ -71,7 +71,7 @@ pipeline {
                         echo "LW_SCANNER_SAVE_RESULTS=true"   >> env.list
 
                         # Append Jenkins build metadata
-                        env | grep '^BRANCH_\|^CHANGE_\|^TAG_\|^BUILD_\|^JOB_\|^JENKINS_\|^GIT_' >> env.list || true
+                        env | grep -E "^(BRANCH_|CHANGE_|TAG_|BUILD_|JOB_|JENKINS_|GIT_)" >> env.list || true
 
                         echo "Scanning: ${TEMPLATE_FILE}"
                         REPORT_JSON="$REPORT_DIR/scan-result.json"
