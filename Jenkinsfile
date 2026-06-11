@@ -74,26 +74,21 @@ pipeline {
                         if ! command -v lacework >/dev/null 2>&1; then
                             echo "Installing Lacework CLI..."
                             curl -L https://github.com/lacework/go-lacework/releases/latest/download/lacework-linux-amd64 \
-                                -o /tmp/lacework
-                            chmod +x /tmp/lacework
-                            CLI=/tmp/lacework
-                        else
-                            CLI=lacework
+                                -o /usr/local/bin/lacework
+                            chmod +x /usr/local/bin/lacework
                         fi
-
-                        # Authenticate via environment variables (no config file needed)
-                        export LW_ACCOUNT="${LACEWORK_ACCOUNT}"
-                        export LW_API_KEY="${LW_ACCESS}"
-                        export LW_API_SECRET="${LW_SECRET}"
 
                         # Run IaC scan on CloudFormation template
                         echo "Scanning: ${TEMPLATE_FILE}"
                         REPORT_JSON="$REPORT_DIR/scan-result.json"
 
-                        $CLI iac scan \
+                        lacework iac scan \
                             --iac-type cloudformation \
                             --file "${TEMPLATE_FILE}" \
-                            --output json > "$REPORT_JSON" 2>&1 || true
+                            --output json \
+                            -a "${LACEWORK_ACCOUNT}" \
+                            -k "${LW_ACCESS}" \
+                            -s "${LW_SECRET}" > "$REPORT_JSON" 2>&1 || true
 
                         # Print raw scan output for debugging
                         echo "--- Raw scan output ---"
