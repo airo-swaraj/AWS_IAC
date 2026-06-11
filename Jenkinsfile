@@ -70,13 +70,12 @@ pipeline {
                             exit 1
                         fi
 
-                        # Install Lacework CLI if not present
-                        if ! command -v lacework >/dev/null 2>&1; then
+                        # Install Lacework CLI if not present or broken
+                        if ! lacework version >/dev/null 2>&1; then
                             echo "Installing Lacework CLI..."
-                            curl -L https://github.com/lacework/go-lacework/releases/latest/download/lacework-linux-amd64 \
-                                -o /usr/local/bin/lacework
-                            chmod +x /usr/local/bin/lacework
+                            curl -L https://raw.githubusercontent.com/lacework/go-lacework/main/install.sh | bash
                         fi
+                        echo "Lacework CLI version: $(lacework version)"
 
                         # Run IaC scan on CloudFormation template
                         echo "Scanning: ${TEMPLATE_FILE}"
