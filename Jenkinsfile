@@ -86,6 +86,7 @@ pipeline {
                             --iac-type cloudformation \
                             --file "${TEMPLATE_FILE}" \
                             --output json \
+                            --save-results \
                             -a "${LACEWORK_ACCOUNT}" \
                             -k "${LW_ACCESS}" \
                             -s "${LW_SECRET}" > "$REPORT_JSON" 2>&1 || true
