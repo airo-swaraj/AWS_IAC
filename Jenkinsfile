@@ -56,16 +56,106 @@ pipeline {
                     string(credentialsId: 'FORTICNAPP_ACCOUNT', variable: 'LACEWORK_ACCOUNT')
                 ]) {
                     sh '''
-                        # Make script executable
-                        chmod +x scripts/forticnapp-scan.sh
-                        
-                        # Run FortiCNAPP scan on template
-                        export LW_ACCESS="${LW_ACCESS}"
-                        export LW_SECRET="${LW_SECRET}"
-                        export LACEWORK_ACCOUNT="${LACEWORK_ACCOUNT}"
-                        export SCAN_REPORT_DIR="forticnapp-scan-reports"
-                        
-                        ./scripts/forticnapp-scan.sh ${TEMPLATE_FILE} || true
+                        set -e
+                        REPORT_DIR="${SCAN_REPORT_DIR}"
+                        mkdir -p "$REPORT_DIR"
+
+                        echo "================================"
+                        echo "Starting FortiCNAPP IaC Scan"
+                        echo "================================"
+
+                        # Validate credentials
+                        if [ -z "$LW_ACCESS" ] || [ -z "$LW_SECRET" ] || [ -z "$LACEWORK_ACCOUNT" ]; then
+                            echo "ERROR: Missing FortiCNAPP credentials (LW_ACCESS, LW_SECRET, LACEWORK_ACCOUNT)"
+                            exit 1
+                        fi
+
+                        # Authenticate and obtain API token
+                        echo "Authenticating with FortiCNAPP..."
+                        TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
+                            -H "X-LW-UAKS: ${LW_SECRET}" \
+                            -H "Content-Type: application/json" \
+                            -d "{\\"keyId\\":\\"${LW_ACCESS}\\",\\"expiryTime\\":3600}")
+
+                        API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
+
+                        if [ -z "$API_TOKEN" ] || [ "$API_TOKEN" = "null" ]; then
+                            echo "ERROR: Failed to authenticate with FortiCNAPP API"
+                            echo "Response: $TOKEN_RESPONSE"
+                            exit 1
+                        fi
+                        echo "Authentication successful."
+
+                        # Scan the CloudFormation template
+                        TEMPLATE="${TEMPLATE_FILE}"
+                        if [ ! -f "$TEMPLATE" ]; then
+                            echo "ERROR: Template file not found: $TEMPLATE"
+                            exit 1
+                        fi
+
+                        echo "Scanning: $TEMPLATE"
+                        PAYLOAD=$(base64 < "$TEMPLATE" | tr -d '\\n')
+
+                        SCAN_RESPONSE=$(curl -s -X POST \
+                            "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/CloudFormationTemplate/scan" \
+                            -H "Content-Type: application/json" \
+                            -H "Authorization: Bearer ${API_TOKEN}" \
+                            -d "{\\"template\\":\\"${PAYLOAD}\\"}")
+
+                        REPORT_JSON="$REPORT_DIR/scan-result.json"
+                        echo "$SCAN_RESPONSE" > "$REPORT_JSON"
+
+                        ISSUE_COUNT=$(echo "$SCAN_RESPONSE" | jq '.data | length' 2>/dev/null || echo "0")
+                        if [ "$ISSUE_COUNT" -gt 0 ]; then
+                            echo "WARNING: Found $ISSUE_COUNT issue(s) in $TEMPLATE"
+                        else
+                            echo "No issues found in $TEMPLATE"
+                        fi
+
+                        # Generate HTML report
+                        SCAN_DATE=$(date)
+                        REPORT_HTML="$REPORT_DIR/scan-report.html"
+                        cat > "$REPORT_HTML" <<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FortiCNAPP IaC Security Scan Report</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 40px 20px; text-align: center; }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .content { padding: 30px; }
+        .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; display: inline-block; min-width: 200px; margin: 10px; }
+        .stat-card h4 { font-size: 14px; opacity: 0.9; margin-bottom: 10px; }
+        .stat-card .number { font-size: 32px; font-weight: bold; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; max-height: 400px; overflow-y: auto; margin-top: 20px; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FortiCNAPP IaC Security Scan Report</h1>
+            <p>Scan Date: <strong>${SCAN_DATE}</strong></p>
+        </div>
+        <div class="content">
+            <div class="stat-card"><h4>Files Scanned</h4><div class="number">1</div></div>
+            <div class="stat-card"><h4>Issues Found</h4><div class="number">${ISSUE_COUNT}</div></div>
+            <div class="stat-card"><h4>Account</h4><div class="number">${LACEWORK_ACCOUNT}</div></div>
+            <h2 style="margin-top:30px;">Scan Results: ${TEMPLATE_FILE}</h2>
+            <pre>$(cat "$REPORT_JSON" | jq . 2>/dev/null || cat "$REPORT_JSON")</pre>
+        </div>
+        <div class="footer">Generated by FortiCNAPP IaC Scanner | ${SCAN_DATE}</div>
+    </div>
+</body>
+</html>
+HTML
+
+                        echo "================================"
+                        echo "Scan complete. Reports saved to: $REPORT_DIR"
+                        echo "================================"
                     '''
                 }
             }
