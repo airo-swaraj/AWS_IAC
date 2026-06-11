@@ -64,24 +64,21 @@ pipeline {
                         echo "Starting FortiCNAPP IaC Scan"
                         echo "================================"
 
-                        # Build env.list for the Docker container
-                        ENV_FILE="${REPORT_DIR}/env.list"
-                        echo "LW_ACCOUNT=${LACEWORK_ACCOUNT}"        > "$ENV_FILE"
-                        echo "LW_API_KEY=${LW_ACCESS}"               >> "$ENV_FILE"
-                        echo "LW_API_SECRET=${LW_SECRET}"            >> "$ENV_FILE"
-                        echo "LW_SCANNER_SAVE_RESULTS=true"          >> "$ENV_FILE"
-                        echo "SCAN_COMMAND=iac-scan"                  >> "$ENV_FILE"
-                        echo "WORKSPACE=/app/src"                     >> "$ENV_FILE"
+                        # Build env.list for the Docker container (per Lacework docs)
+                        echo "LW_ACCOUNT=${LACEWORK_ACCOUNT}"  > env.list
+                        echo "LW_API_KEY=${LW_ACCESS}"        >> env.list
+                        echo "LW_API_SECRET=${LW_SECRET}"     >> env.list
+                        echo "LW_SCANNER_SAVE_RESULTS=true"   >> env.list
 
                         # Append Jenkins build metadata
-                        env | grep -E "^(BUILD_|JOB_|GIT_|BRANCH_)" >> "$ENV_FILE" || true
+                        env | grep '^BRANCH_\|^CHANGE_\|^TAG_\|^BUILD_\|^JOB_\|^JENKINS_\|^GIT_' >> env.list || true
 
                         echo "Scanning: ${TEMPLATE_FILE}"
                         REPORT_JSON="$REPORT_DIR/scan-result.json"
 
                         # Run scan via official FortiCNAPP IaC Docker image
                         docker run --rm \
-                            --env-file "$ENV_FILE" \
+                            --env-file env.list \
                             -e EXIT_FLAG=none \
                             -v "$(pwd):/app/src" \
                             lacework/codesec-iac:stable \
