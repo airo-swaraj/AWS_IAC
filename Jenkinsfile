@@ -64,49 +64,43 @@ pipeline {
                         echo "Starting FortiCNAPP IaC Scan"
                         echo "================================"
 
-                        # Validate credentials
-                        if [ -z "$LW_ACCESS" ] || [ -z "$LW_SECRET" ] || [ -z "$LACEWORK_ACCOUNT" ]; then
-                            echo "ERROR: Missing FortiCNAPP credentials (LW_ACCESS, LW_SECRET, LACEWORK_ACCOUNT)"
-                            exit 1
-                        fi
+                        # Build env.list for the Docker container
+                        ENV_FILE="${REPORT_DIR}/env.list"
+                        echo "LW_ACCOUNT=${LACEWORK_ACCOUNT}"        > "$ENV_FILE"
+                        echo "LW_API_KEY=${LW_ACCESS}"               >> "$ENV_FILE"
+                        echo "LW_API_SECRET=${LW_SECRET}"            >> "$ENV_FILE"
+                        echo "LW_SCANNER_SAVE_RESULTS=true"          >> "$ENV_FILE"
+                        echo "SCAN_COMMAND=iac-scan"                  >> "$ENV_FILE"
+                        echo "WORKSPACE=/app/src"                     >> "$ENV_FILE"
 
-                        # Remove any broken binary and reinstall Lacework CLI
-                        LW_BIN=/tmp/lacework
-                        if ! $LW_BIN version >/dev/null 2>&1; then
-                            echo "Installing Lacework CLI..."
-                            rm -f "$LW_BIN"
-                            LATEST_URL=$(curl -sL https://api.github.com/repos/lacework/go-lacework/releases/latest \
-                                | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if 'linux-amd64' in a['name'] and a['name'].endswith('lacework-linux-amd64')),''  ))")
-                            if [ -z "$LATEST_URL" ]; then
-                                echo "ERROR: Could not find Lacework CLI download URL"
-                                exit 1
-                            fi
-                            echo "Downloading from: $LATEST_URL"
-                            curl -L --fail "$LATEST_URL" -o "$LW_BIN"
-                            chmod +x "$LW_BIN"
-                        fi
-                        echo "Lacework CLI version: $($LW_BIN version)"
+                        # Append Jenkins build metadata
+                        env | grep -E "^(BUILD_|JOB_|GIT_|BRANCH_)" >> "$ENV_FILE" || true
 
-                        # Run IaC scan on CloudFormation template
                         echo "Scanning: ${TEMPLATE_FILE}"
                         REPORT_JSON="$REPORT_DIR/scan-result.json"
 
-                        $LW_BIN iac scan \
-                            --iac-type cloudformation \
-                            --file "${TEMPLATE_FILE}" \
-                            --output json \
-                            --save-results \
-                            -a "${LACEWORK_ACCOUNT}" \
-                            -k "${LW_ACCESS}" \
-                            -s "${LW_SECRET}" > "$REPORT_JSON" 2>&1 || true
+                        # Run scan via official FortiCNAPP IaC Docker image
+                        docker run --rm \
+                            --env-file "$ENV_FILE" \
+                            -e EXIT_FLAG=none \
+                            -v "$(pwd):/app/src" \
+                            lacework/codesec-iac:stable \
+                            lacework iac scan \
+                                --iac-type cloudformation \
+                                --directory=/app/src \
+                                --output json \
+                                --save-results \
+                                -a "${LACEWORK_ACCOUNT}" \
+                                -k "${LW_ACCESS}" \
+                                -s "${LW_SECRET}" > "$REPORT_JSON" 2>&1 || true
 
-                        # Print raw scan output for debugging
+                        # Print raw scan output
                         echo "--- Raw scan output ---"
                         cat "$REPORT_JSON" || echo "(empty)"
                         echo "--- End scan output ---"
 
-                        # Parse and display results
-                        ISSUE_COUNT=$(jq '[.. | objects | select(has("severity"))] | length' "$REPORT_JSON" 2>/dev/null || echo "0")
+                        # Parse issue count
+                        ISSUE_COUNT=$(jq "[.. | objects | select(has(\"severity\"))] | length" "$REPORT_JSON" 2>/dev/null || echo "0")
                         if [ "$ISSUE_COUNT" -gt 0 ]; then
                             echo "WARNING: Found $ISSUE_COUNT issue(s) in ${TEMPLATE_FILE}"
                         else
