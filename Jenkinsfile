@@ -93,9 +93,9 @@ pipeline {
                         echo "--- End scan output ---"
 
                         # Parse issue count from text output
-                        ISSUE_COUNT=$(grep -c "false$" "$REPORT_JSON" 2>/dev/null || echo "0")
-                        CRITICAL_COUNT=$(grep -c "Critical.*false" "$REPORT_JSON" 2>/dev/null || echo "0")
-                        HIGH_COUNT=$(grep -c "High.*false" "$REPORT_JSON" 2>/dev/null || echo "0")
+                        ISSUE_COUNT=$(grep " false " "$REPORT_JSON" 2>/dev/null | wc -l | tr -d ' ')
+                        CRITICAL_COUNT=$(grep "Critical.*false" "$REPORT_JSON" 2>/dev/null | wc -l | tr -d ' ')
+                        HIGH_COUNT=$(grep "High.*false" "$REPORT_JSON" 2>/dev/null | wc -l | tr -d ' ')
                         if [ "$ISSUE_COUNT" -gt 0 ]; then
                             echo "WARNING: Found $ISSUE_COUNT failing issue(s) ($CRITICAL_COUNT Critical, $HIGH_COUNT High)"
                         else
