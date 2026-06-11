@@ -70,10 +70,21 @@ pipeline {
                             exit 1
                         fi
 
-                        # Install Lacework CLI if not present or broken
+                        # Remove any broken binary and reinstall Lacework CLI
                         if ! lacework version >/dev/null 2>&1; then
                             echo "Installing Lacework CLI..."
-                            curl -L https://raw.githubusercontent.com/lacework/go-lacework/main/install.sh | bash
+                            rm -f /usr/local/bin/lacework
+                            LATEST_URL=$(curl -s https://api.github.com/repos/lacework/go-lacework/releases/latest \
+                                | grep "browser_download_url" \
+                                | grep "linux-amd64\"" \
+                                | cut -d'"' -f4 | head -1)
+                            if [ -z "$LATEST_URL" ]; then
+                                echo "ERROR: Could not find Lacework CLI download URL"
+                                exit 1
+                            fi
+                            echo "Downloading from: $LATEST_URL"
+                            curl -L --fail "$LATEST_URL" -o /usr/local/bin/lacework
+                            chmod +x /usr/local/bin/lacework
                         fi
                         echo "Lacework CLI version: $(lacework version)"
 
