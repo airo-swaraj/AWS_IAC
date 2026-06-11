@@ -85,14 +85,7 @@ pipeline {
                             -e EXIT_FLAG=none \
                             -v "$(pwd):/app/src" \
                             lacework/codesec-iac:stable \
-                            lacework iac scan \
-                                --iac-type cloudformation \
-                                --directory=/app/src \
-                                --output json \
-                                --save-results \
-                                -a "${LACEWORK_ACCOUNT}" \
-                                -k "${LW_ACCESS}" \
-                                -s "${LW_SECRET}" > "$REPORT_JSON" 2>&1 || true
+                            lacework iac scan --directory=/app/src > "$REPORT_JSON" 2>&1 || true
 
                         # Print raw scan output
                         echo "--- Raw scan output ---"
