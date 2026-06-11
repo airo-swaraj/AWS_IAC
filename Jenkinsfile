@@ -74,10 +74,8 @@ pipeline {
                         if ! lacework version >/dev/null 2>&1; then
                             echo "Installing Lacework CLI..."
                             rm -f /usr/local/bin/lacework
-                            LATEST_URL=$(curl -s https://api.github.com/repos/lacework/go-lacework/releases/latest \
-                                | grep "browser_download_url" \
-                                | grep "linux-amd64\"" \
-                                | cut -d'"' -f4 | head -1)
+                            LATEST_URL=$(curl -sL https://api.github.com/repos/lacework/go-lacework/releases/latest \
+                                | python3 -c "import sys,json; assets=json.load(sys.stdin).get('assets',[]); print(next((a['browser_download_url'] for a in assets if 'linux-amd64' in a['name'] and a['name'].endswith('lacework-linux-amd64')),''  ))")
                             if [ -z "$LATEST_URL" ]; then
                                 echo "ERROR: Could not find Lacework CLI download URL"
                                 exit 1
