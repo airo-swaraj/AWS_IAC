@@ -95,6 +95,11 @@ pipeline {
                             --file "${TEMPLATE_FILE}" \
                             --output json > "$REPORT_JSON" 2>&1 || true
 
+                        # Print raw scan output for debugging
+                        echo "--- Raw scan output ---"
+                        cat "$REPORT_JSON" || echo "(empty)"
+                        echo "--- End scan output ---"
+
                         # Parse and display results
                         ISSUE_COUNT=$(jq '[.. | objects | select(has("severity"))] | length' "$REPORT_JSON" 2>/dev/null || echo "0")
                         if [ "$ISSUE_COUNT" -gt 0 ]; then
