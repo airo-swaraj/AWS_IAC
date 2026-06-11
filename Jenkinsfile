@@ -56,87 +56,16 @@ pipeline {
                     string(credentialsId: 'FORTICNAPP_ACCOUNT', variable: 'LACEWORK_ACCOUNT')
                 ]) {
                     sh '''
-                        mkdir -p ${SCAN_REPORT_DIR}
+                        # Make script executable
+                        chmod +x scripts/forticnapp-scan.sh
                         
-                        echo "================================"
-                        echo "FortiCNAPP IaC Scan"
-                        echo "================================"
-                        echo "Scan Date: $(date)"
-                        echo "Stack Name: ${STACK_NAME}"
-                        echo "Environment: ${ENVIRONMENT}"
-                        echo "Template: ${TEMPLATE_FILE}"
-                        echo "Account: ${LACEWORK_ACCOUNT}"
-                        echo "================================"
-                        echo ""
+                        # Run FortiCNAPP scan on template
+                        export LW_ACCESS="${LW_ACCESS}"
+                        export LW_SECRET="${LW_SECRET}"
+                        export LACEWORK_ACCOUNT="${LACEWORK_ACCOUNT}"
+                        export SCAN_REPORT_DIR="forticnapp-scan-reports"
                         
-                        # Read CloudFormation template
-                        echo "Scanning CloudFormation template: ${TEMPLATE_FILE}"
-                        
-                        # Call FortiCNAPP API to scan CloudFormation
-                        SCAN_PAYLOAD=$(cat ${TEMPLATE_FILE} | base64 -w 0)
-                        
-                        echo "Uploading template to FortiCNAPP for analysis..."
-                        
-                        # API call to FortiCNAPP with proper authentication headers
-                        # Use curl's -u flag for Basic Auth (standard method)
-                        TOKEN_RESPONSE=$(curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/access/tokens" \
-                          -u "${LW_ACCESS}:${LW_SECRET}" \
-                          -H "Content-Type: application/json" \
-                          -d '{"expiryTime":3600}')
-                        
-                        API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
-                        
-                        if [ -z "$API_TOKEN" ] || [ "$API_TOKEN" = "null" ]; then
-                            echo "⚠️  Failed to authenticate with FortiCNAPP API"
-                            echo "Response: $TOKEN_RESPONSE"
-                            exit 0
-                        fi
-                        
-                        echo "✓ Successfully authenticated with FortiCNAPP"
-                        echo "Calling FortiCNAPP API with token..."
-                        curl -s -X POST "https://${LACEWORK_ACCOUNT}.lacework.net/api/v2/CloudFormationTemplate/scan" \
-                          -H "Content-Type: application/json" \
-                          -H "Authorization: Bearer ${API_TOKEN}" \
-                          -d '{"template":"'"${SCAN_PAYLOAD}"'"}' \
-                          > ${SCAN_REPORT_DIR}/scan-result.json 2>&1 || true
-                        
-                        echo ""
-                        echo "Scan Results:"
-                        echo "=============="
-                        if [ -f ${SCAN_REPORT_DIR}/scan-result.json ]; then
-                            cat ${SCAN_REPORT_DIR}/scan-result.json | python3 -m json.tool 2>/dev/null || cat ${SCAN_REPORT_DIR}/scan-result.json
-                        fi
-                        
-                        # Generate HTML report
-                        cat > ${SCAN_REPORT_DIR}/scan-report.html <<'HTMLREPORT'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>FortiCNAPP IaC Security Scan</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-        .header { background: #2c3e50; color: white; padding: 20px; border-radius: 5px; }
-        .summary { background: white; padding: 15px; margin: 20px 0; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        pre { background: #ecf0f1; padding: 10px; border-radius: 3px; overflow-x: auto; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>FortiCNAPP IaC Security Scan Report</h1>
-        <p>Stack: ${STACK_NAME} | Environment: ${ENVIRONMENT} | Scan Date: $(date)</p>
-    </div>
-    <div class="summary">
-        <h2>Scan Results</h2>
-        <pre>$(cat ${SCAN_REPORT_DIR}/scan-result.json 2>/dev/null || echo "Scan in progress...")</pre>
-    </div>
-</body>
-</html>
-HTMLREPORT
-                        
-                        echo ""
-                        echo "✅ FortiCNAPP IaC scan completed"
-                        echo "📊 Scan results saved to ${SCAN_REPORT_DIR}/"
-                        echo "📋 View report: forticnapp-scan-reports/scan-report.html"
+                        ./scripts/forticnapp-scan.sh ${TEMPLATE_FILE} || true
                     '''
                 }
             }
