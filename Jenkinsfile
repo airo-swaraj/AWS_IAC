@@ -77,7 +77,7 @@ pipeline {
                             -H "Content-Type: application/json" \
                             -d "{\\"keyId\\":\\"${LW_ACCESS}\\",\\"expiryTime\\":3600}")
 
-                        API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.data[0].token' 2>/dev/null || echo "")
+                        API_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.token' 2>/dev/null || echo "")
 
                         if [ -z "$API_TOKEN" ] || [ "$API_TOKEN" = "null" ]; then
                             echo "ERROR: Failed to authenticate with FortiCNAPP API"
